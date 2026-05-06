@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Vibe Check">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>Vibe Check</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --border: #1e1e1e;
+      --text: #e0e0e0;
+      --text-dim: #666;
+      --accent: #ff6b35;
+      --accent-glow: rgba(255, 107, 53, 0.15);
+      --tap-flash: rgba(255, 107, 53, 0.3);
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+    }
+
+    /* ---- tap zone ---- */
+    .tap-zone {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px 32px;
+    }
+
+    .tap-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      background: var(--surface);
+      color: var(--accent);
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+      box-shadow: 0 0 24px var(--accent-glow);
+    }
+
+    .tap-btn:active {
+      transform: scale(0.93);
+      box-shadow: 0 0 40px var(--tap-flash);
+    }
+
+    .tap-btn::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 107, 53, 0.08);
+    }
+
+    /* flash animation on tap */
+    .tap-btn.flash {
+      animation: pulse 0.35s ease-out;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 24px var(--accent-glow); }
+      50% { box-shadow: 0 0 60px var(--tap-flash); }
+      100% { box-shadow: 0 0 24px var(--accent-glow); }
+    }
+
+    /* ---- log section ---- */
+    .log-section {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0 24px 24px;
+    }
+
+    .log-header {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 16px 0 12px;
+      border-top: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 1;
+    }
+
+    .log-list {
+      list-style: none;
+    }
+
+    .log-item {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 300;
+      color: var(--text);
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      opacity: 0;
+      animation: fadeIn 0.25s ease forwards;
+    }
+
+    .log-item:first-child {
+      color: var(--accent);
+    }
+
+    .log-item .date-part {
+      color: var(--text-dim);
+      margin-right: 8px;
+    }
+
+    .log-empty {
+      font-size: 13px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 48px 0;
+      font-weight: 300;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* scrollbar */
+    .log-section::-webkit-scrollbar { width: 2px; }
+    .log-section::-webkit-scrollbar-track { background: transparent; }
+    .log-section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 1px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="tap-zone">
+      <button class="tap-btn" id="tapBtn">LOG</button>
+    </div>
+    <div class="log-section">
+      <div class="log-header" id="logHeader">Log</div>
+      <ul class="log-list" id="logList"></ul>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'vibecheck_logs';
+    const btn = document.getElementById('tapBtn');
+    const logList = document.getElementById('logList');
+    const logHeader = document.getElementById('logHeader');
+
+    function getLogs() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch { return []; }
+    }
+
+    function saveLogs(logs) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+    }
+
+    function formatTime(iso) {
+      const d = new Date(iso);
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const h = d.getHours().toString().padStart(2, '0');
+      const m = d.getMinutes().toString().padStart(2, '0');
+      return { date: `${month}/${day}`, time: `${h}:${m}` };
+    }
+
+    function renderLogs() {
+      const logs = getLogs();
+      logHeader.textContent = logs.length > 0 ? `Log · ${logs.length}` : 'Log';
+
+      if (logs.length === 0) {
+        logList.innerHTML = '<li class="log-empty">no entries yet</li>';
+        return;
+      }
+
+      logList.innerHTML = [...logs].reverse().map(iso => {
+        const { date, time } = formatTime(iso);
+        return `<li class="log-item"><span class="date-part">${date}</span>${time}</li>`;
+      }).join('');
+    }
+
+    function addLog() {
+      const logs = getLogs();
+      logs.push(new Date().toISOString());
+      saveLogs(logs);
+      renderLogs();
+
+      // flash feedback
+      btn.classList.remove('flash');
+      void btn.offsetWidth;
+      btn.classList.add('flash');
+    }
+
+    btn.addEventListener('click', addLog);
+
+    // init
+    renderLogs();
+
+    // register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
